@@ -1,0 +1,81 @@
+﻿AppType=JavaFX
+Build1=Default,b4j.example
+File1=1.bjl
+FileGroup1=Default Group
+Group=Default Group
+Library1=jcore
+Library2=jfx
+Library3=jrandomaccessfile
+Library4=jnetwork
+Library5=jokhttputils2
+Library6=json
+Library7=jstringutils
+Module1=GoogleOAuth2
+NumberOfFiles=1
+NumberOfLibraries=7
+NumberOfModules=1
+Version=9.8
+@EndOfDesignText@
+#Region Project Attributes 
+	#MainFormWidth: 600
+	#MainFormHeight: 600 
+#End Region
+' Developer: aeric
+' Please refer to B4X foum: https://www.b4x.com/android/forum/threads/firebase-sending-tool-needs-update-to-support-firebase-cloud-messaging-v1.141044/#post-893722
+' Buy me a coffee if I helped you! https://paypal.me/aeric80/10
+
+Sub Process_Globals
+	Private fx As JFX
+	Private MainForm As Form
+	Private ClientId As String = "012345678910-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" ' My sample Client ID
+	Private Scope As String = "https://www.googleapis.com/auth/firebase.messaging"
+	Private ClientSecret As String = "XXXXXX-xx3Xx6xXxXxX-XxxXxxX9xX_xxX" ' My sample ClientSecret
+	Private ProjectId As String = "fire-push-24359" ' My sample project ID
+	Private oauth2 As GoogleOAuth2
+End Sub
+
+Sub AppStart (Form1 As Form, Args() As String)
+	MainForm = Form1
+	oauth2.Initialize(Me, "oauth2", ClientId, Scope, ClientSecret, File.DirApp)
+	MainForm.RootPane.LoadLayout("1") 'Load the layout file.
+	MainForm.Show
+End Sub
+
+Private Sub SendMessage (Topic As String, Title As String, Body As String)
+	oauth2.GetAccessToken
+	Wait For OAuth2_AccessTokenAvailable (Success As Boolean, Token As String)
+	If Success = False Then
+		Log("Error accessing account.")
+		Return
+	End If
+	Log ( Token )
+	
+	Dim Job As HttpJob
+	Job.Initialize("fcm", Me)
+	Dim data As Map = CreateMap("info": "B4J Sending Tool v2")
+	Dim notification As Map = CreateMap("title": Title, "body": Body)
+	Dim message As Map = CreateMap("topic": $"${Topic}"$, "notification": notification, "data": data)
+	Dim m As Map = CreateMap("message": message)
+	Dim jg As JSONGenerator
+	jg.Initialize(m)
+	Job.PostString($"https://fcm.googleapis.com/v1/projects/${ProjectId}/messages:send"$, jg.ToString)
+	Job.GetRequest.SetContentType("application/json;charset=UTF-8")
+	Job.GetRequest.SetHeader("Authorization", "Bearer " & Token)
+	Wait For (Job) JobDone(Job As HttpJob)
+	If Job.Success Then
+		Log ( Job.GetString )
+	Else
+		Log ( Job.ErrorMessage )
+		'oauth2.ResetToken
+	End If
+	Job.Release
+End Sub
+
+'Return true to allow the default exceptions handler to handle the uncaught exception.
+Sub Application_Error (Error As Exception, StackTrace As String) As Boolean
+	Return True
+End Sub
+
+Private Sub BtnSendMessage_Click
+	SendMessage("ios_general", "title", "body")
+End Sub
